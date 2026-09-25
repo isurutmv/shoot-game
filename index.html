@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Iron Line</title>
+    <link rel="icon" href="/favicon.svg" />
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="view" tabindex="0"></canvas>
+      <div id="ui">
+        <div id="letterbox"></div>
+        <section id="screen-title" class="screen">
+          <div class="title-copy">
+            <p class="kicker">Kesh Valley · Contract series 04</p>
+            <h1 class="wordmark">IRON<br />LINE</h1>
+            <p class="lede">
+              A helicopter brings you onto a pad the maps still call friendly. Hot LZ is the only contract you can fight. The rest of the board is not built yet.
+            </p>
+            <div class="row">
+              <button id="btn-deploy" class="btn" type="button">Deploy</button>
+              <button id="btn-howto" class="btn ghost" type="button">How to fight</button>
+            </div>
+            <div id="howto" class="howto hidden">
+              <p><b>Move</b> W A S D &nbsp; <b>Look</b> mouse or arrow keys &nbsp; <b>Sprint</b> Shift</p>
+              <p><b>Fire</b> left mouse or J &nbsp; <b>Reload</b> R &nbsp; <b>Weapons</b> 1–6 or scroll &nbsp; <b>Grenade</b> G</p>
+              <p><b>Board / exit</b> F &nbsp; <b>Plant / interact</b> hold E &nbsp; <b>Pause</b> Esc</p>
+              <p><b>Ground vehicles</b> W/S throttle, A/D steer, Space brake. Shoot from the seat.</p>
+              <p><b>Helicopter</b> look where you want to go, W/S and A/D slide, Space climbs, C descends. Rockets are on the bird.</p>
+              <p>The insertion is not a card. The bird descends. You step off. Then the valley is yours.</p>
+            </div>
+          </div>
+        </section>
+
+        <section id="screen-missions" class="screen hidden">
+          <div class="board">
+            <header class="board-head">
+              <div>
+                <p class="kicker">Contract board</p>
+                <h2>One open contract</h2>
+                <p id="board-progress" class="muted"></p>
+              </div>
+              <div class="row">
+                <button id="btn-board-back" class="btn ghost" type="button">Back</button>
+                <button id="btn-wipe" class="btn ghost" type="button">Wipe record</button>
+              </div>
+            </header>
+            <div id="mission-grid" class="grid"></div>
+          </div>
+        </section>
+
+        <section id="screen-brief" class="screen hidden">
+          <article class="brief">
+            <p id="brief-kicker" class="kicker"></p>
+            <h2 id="brief-name"></h2>
+            <p id="brief-meta" class="muted"></p>
+            <p id="brief-body"></p>
+            <p class="obj-line"><span>Objective</span> <b id="brief-obj"></b></p>
+            <p class="obj-line fail-line"><span>Fails if</span> <b id="brief-fail"></b></p>
+            <p id="brief-kit" class="muted"></p>
+            <div class="row">
+              <button id="btn-brief-back" class="btn ghost" type="button">Board</button>
+              <button id="btn-start" class="btn" type="button">Insert</button>
+            </div>
+          </article>
+        </section>
+
+        <section id="screen-pause" class="screen hidden">
+          <article class="modal">
+            <p class="kicker">Hold</p>
+            <h2>Paused</h2>
+            <p class="muted">The valley waits. It does not get kinder.</p>
+            <div class="stack">
+              <button id="btn-resume" class="btn" type="button">Resume</button>
+              <button id="btn-retry" class="btn ghost" type="button">Retry contract</button>
+              <button id="btn-abort" class="btn ghost" type="button">Contract board</button>
+            </div>
+          </article>
+        </section>
+
+        <section id="screen-result" class="screen hidden">
+          <article class="modal">
+            <p id="result-kicker" class="kicker"></p>
+            <h2 id="result-title"></h2>
+            <p id="result-body"></p>
+            <p id="result-stats" class="muted"></p>
+            <div class="stack">
+              <button id="btn-next" class="btn" type="button">Next contract</button>
+              <button id="btn-again" class="btn ghost" type="button">Retry</button>
+              <button id="btn-result-board" class="btn ghost" type="button">Contract board</button>
+            </div>
+          </article>
+        </section>
+
+        <div id="hud" class="hidden">
+          <div id="subtitle"></div>
+          <button id="btn-skip" class="btn ghost hidden" type="button">Skip insertion</button>
+          <div id="obj-panel">
+            <div id="obj-kicker">CONTRACT</div>
+            <div id="obj-text"></div>
+            <div id="obj-sub"></div>
+          </div>
+          <div id="compass"><span id="compass-read">N</span></div>
+          <canvas id="minimap" width="180" height="180"></canvas>
+          <div id="marker" class="hidden"><div id="marker-arrow"></div><div id="marker-dist"></div></div>
+          <div id="vignette"></div>
+          <div id="crosshair"><i></i><i></i><i></i><i></i></div>
+          <div id="hitmark"></div>
+          <div id="prompt"></div>
+          <div id="channel" class="hidden"><div id="channel-fill"></div><span id="channel-label"></span></div>
+          <div id="lower">
+            <div id="health-wrap">
+              <div class="hud-label">Vitals</div>
+              <div id="health-bar"><div id="health-fill"></div></div>
+              <div id="health-num">100</div>
+              <div id="veh-line" class="hidden"></div>
+            </div>
+            <ul id="weapon-list"></ul>
+            <div id="weapon-wrap">
+              <div id="weapon-name">M4 Carbine</div>
+              <div id="ammo"><b id="mag">30</b><span id="reserve"> / 150</span></div>
+              <div id="grenade-count">FRAG 0</div>
+              <div id="reload-track"><div id="reload-fill"></div></div>
+            </div>
+          </div>
+          <p id="hint" class="hidden">WASD move · mouse / arrows look · J or click fire · F board · 1–6 weapons</p>
+        </div>
+
+        <div id="touch" class="hidden">
+          <div id="stick-zone"><div id="stick-nub"></div></div>
+          <div id="look-zone"></div>
+          <div id="touch-buttons">
+            <button type="button" data-act="pause">II</button>
+            <button type="button" data-act="weapon">WPN</button>
+            <button type="button" data-act="reload">RLD</button>
+            <button type="button" data-act="grenade">FRAG</button>
+            <button type="button" data-act="use">USE</button>
+            <button type="button" data-act="up">UP</button>
+            <button type="button" data-act="down">DN</button>
+            <button type="button" data-act="fire" class="fire">FIRE</button>
+          </div>
+        </div>
+        <div id="toast"></div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
