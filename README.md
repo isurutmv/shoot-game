@@ -45,7 +45,7 @@ The soldier, guns, and vehicles are textured glTF files. All of them are CC0.
 
 | In the game | Model | Author | Source |
 | --- | --- | --- | --- |
-| Player and enemies | Rigged Lowpoly WW2 Soldier | OpenGameArt community | https://opengameart.org/content/rigged-lowpoly-ww2-soldier |
+| Player and enemies | Rigged Lowpoly WW2 Soldier | nisu / 3DModelsCC0 | https://opengameart.org/content/rigged-lowpoly-ww2-soldier |
 | M4 | M4A1 | nisu / 3DModelsCC0 | https://opengameart.org/content/m4a1-assault-rifle |
 | M9 slot | Desert Eagle | SirDraco65 | https://opengameart.org/content/desert-eagle-0 |
 | Frag grenade | Mk2 grenade | lonesomeducky | https://opengameart.org/content/mk2-grenade |
