@@ -1,5 +1,66 @@
 import * as THREE from 'three'
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
+import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js'
 import type { EnemyKind, WeaponId } from './types.ts'
+
+const gltfLoader = new GLTFLoader()
+const templates = new Map<string, THREE.Group>()
+
+async function loadTemplate(name: string): Promise<void> {
+  const gltf = await gltfLoader.loadAsync(`/models/${name}.glb`)
+  gltf.scene.traverse((obj) => {
+    const mesh = obj as THREE.Mesh
+    if (mesh.isMesh) {
+      mesh.castShadow = true
+      mesh.receiveShadow = true
+    }
+  })
+  templates.set(name, gltf.scene)
+}
+
+export async function preloadModels(): Promise<void> {
+  await Promise.all(['soldier', 'm4', 'pistol', 'grenade', 'jeep', 'helicopter', 'truck'].map(loadTemplate))
+}
+
+function template(name: string): THREE.Group {
+  const src = templates.get(name)
+  if (!src) throw new Error(`Model ${name} is not loaded`)
+  return src
+}
+
+function worldBox(obj: THREE.Object3D): THREE.Box3 {
+  obj.updateMatrixWorld(true)
+  return new THREE.Box3().setFromObject(obj)
+}
+
+/** Scale so the longest side matches `longest`, then sit the bottom on y = 0. */
+function fitUpright(obj: THREE.Object3D, longest: number): void {
+  obj.position.set(0, 0, 0)
+  obj.rotation.set(0, 0, 0)
+  obj.scale.set(1, 1, 1)
+  const size = worldBox(obj).getSize(new THREE.Vector3())
+  const maxDim = Math.max(size.x, size.y, size.z, 0.001)
+  obj.scale.setScalar(longest / maxDim)
+  const box = worldBox(obj)
+  obj.position.y -= box.min.y
+  const center = box.getCenter(new THREE.Vector3())
+  obj.position.x -= center.x
+  obj.position.z -= center.z
+}
+
+function fitCarried(obj: THREE.Object3D, length: number): void {
+  obj.position.set(0, 0, 0)
+  obj.rotation.set(0, 0, 0)
+  obj.scale.set(1, 1, 1)
+  const size = worldBox(obj).getSize(new THREE.Vector3())
+  if (size.x >= size.y && size.x >= size.z) obj.rotation.y = Math.PI / 2
+  else if (size.y >= size.x && size.y >= size.z) obj.rotation.x = Math.PI / 2
+  const size2 = worldBox(obj).getSize(new THREE.Vector3())
+  obj.scale.setScalar(length / Math.max(size2.z, 0.001))
+  const box = worldBox(obj)
+  const center = box.getCenter(new THREE.Vector3())
+  obj.position.sub(center)
+}
 
 const geoCache = new Map<string, THREE.BufferGeometry>()
 const matCache = new Map<string, THREE.MeshStandardMaterial>()
@@ -9,16 +70,6 @@ function boxGeo(w: number, h: number, d: number): THREE.BufferGeometry {
   let g = geoCache.get(k)
   if (!g) {
     g = new THREE.BoxGeometry(w, h, d)
-    geoCache.set(k, g)
-  }
-  return g
-}
-
-function cylGeo(rt: number, rb: number, h: number, seg = 8): THREE.BufferGeometry {
-  const k = `c${rt}_${rb}_${h}_${seg}`
-  let g = geoCache.get(k)
-  if (!g) {
-    g = new THREE.CylinderGeometry(rt, rb, h, seg)
     geoCache.set(k, g)
   }
   return g
@@ -66,184 +117,123 @@ function addBox(
 export interface SoldierRig {
   group: THREE.Group
   gun: THREE.Group
-  leftLeg: THREE.Group
-  rightLeg: THREE.Group
+  leftLeg: THREE.Object3D
+  rightLeg: THREE.Object3D
   bodyMat: THREE.MeshStandardMaterial
 }
 
 export function makeSoldier(kind: EnemyKind | 'player' | 'vip'): SoldierRig {
+  const model = cloneSkinned(template('soldier'))
   const group = new THREE.Group()
-  const clothColor =
-    kind === 'player' ? 0x31402c : kind === 'vip' ? 0x2f4d62 : kind === 'sniper' ? 0x3e4638 : kind === 'officer' ? 0x6a5438 : 0x7a6244
-  const bodyMat = new THREE.MeshStandardMaterial({ color: clothColor, roughness: 0.88 })
-  const skin = stdMat(kind === 'vip' ? 0xd2b48c : 0xc4a574, 0.7, 0)
-  const dark = stdMat(0x1c201c, 0.6, 0.2)
-  const vest = stdMat(kind === 'heavy' ? 0x2a2e28 : 0x24281f, 0.75, 0.15)
+  const size = worldBox(model).getSize(new THREE.Vector3())
+  const height = Math.max(size.y, 0.001)
+  model.scale.setScalar(1.82 / height)
+  const box = worldBox(model)
+  model.position.y -= box.min.y
+  const mid = worldBox(model).getCenter(new THREE.Vector3())
+  model.position.x -= mid.x
+  model.position.z -= mid.z
+  group.add(model)
 
-  const leftLeg = new THREE.Group()
-  leftLeg.position.set(-0.12, 0.92, 0)
-  addBox(leftLeg, 0.16, 0.5, 0.18, 0, -0.28, 0, bodyMat)
-  addBox(leftLeg, 0.17, 0.12, 0.28, 0, -0.56, 0.04, dark)
-  group.add(leftLeg)
+  const drop = (name: string, z: number) => {
+    const bone = model.getObjectByName(name)
+    if (bone) bone.rotation.z = z
+  }
+  drop('LeftArm', 1.25)
+  drop('RightArm', -1.25)
+  const fore = model.getObjectByName('RightForeArm')
+  if (fore) fore.rotation.y = -0.45
 
-  const rightLeg = new THREE.Group()
-  rightLeg.position.set(0.12, 0.92, 0)
-  addBox(rightLeg, 0.16, 0.5, 0.18, 0, -0.28, 0, bodyMat)
-  addBox(rightLeg, 0.17, 0.12, 0.28, 0, -0.56, 0.04, dark)
-  group.add(rightLeg)
-
-  addBox(group, 0.42, 0.18, 0.24, 0, 0.98, 0, dark)
-  addBox(group, 0.46, 0.48, 0.28, 0, 1.32, 0, bodyMat)
-  addBox(group, 0.4, 0.32, 0.16, 0, 1.36, 0.12, vest)
-  addBox(group, 0.12, 0.36, 0.12, -0.28, 1.28, 0.05, bodyMat)
-  addBox(group, 0.12, 0.36, 0.12, 0.28, 1.28, 0.12, bodyMat)
-
-  const head = new THREE.Mesh(sphGeo(0.16), skin)
-  head.position.set(0, 1.72, 0)
-  head.castShadow = true
-  group.add(head)
-  addBox(group, 0.28, 0.1, 0.28, 0, 1.84, 0, dark)
-  if (kind === 'officer') addBox(group, 0.22, 0.08, 0.22, 0, 1.92, 0, stdMat(0x2a241c))
-  if (kind === 'vip') addBox(group, 0.12, 0.08, 0.04, 0.22, 1.4, 0.16, stdMat(0xd7b36a))
+  let bodyMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8 })
+  model.traverse((obj) => {
+    const mesh = obj as THREE.Mesh
+    if (!mesh.isMesh) return
+    const src = mesh.material
+    const mat = (Array.isArray(src) ? src[0] : src) as THREE.MeshStandardMaterial
+    if (mat && 'emissive' in mat) {
+      bodyMat = mat.clone()
+      if (kind !== 'player') bodyMat.color.multiply(new THREE.Color(kind === 'vip' ? 0x9eb4c4 : 0x8d8468))
+      mesh.material = bodyMat
+    }
+  })
 
   const gun = new THREE.Group()
-  gun.position.set(0.28, 1.22, 0.28)
+  gun.position.set(0.16, 1.22, -0.28)
   group.add(gun)
-  if (kind === 'heavy') group.scale.setScalar(1.12)
+  const leftLeg = model.getObjectByName('LeftUpLeg') ?? new THREE.Group()
+  const rightLeg = model.getObjectByName('RightUpLeg') ?? new THREE.Group()
+  leftLeg.userData.restX = leftLeg.rotation.x
+  rightLeg.userData.restX = rightLeg.rotation.x
+  if (kind === 'heavy') group.scale.setScalar(1.08)
   return { group, gun, leftLeg, rightLeg, bodyMat }
 }
 
 export function setWeaponVisual(gun: THREE.Group, id: WeaponId | 'none'): void {
   gun.clear()
   if (id === 'none') return
-  const metal = stdMat(0x2a2d30, 0.45, 0.55)
-  const wood = stdMat(0x5a4030, 0.7, 0.05)
-  const olive = stdMat(0x3d4632, 0.6, 0.2)
-  if (id === 'pistol') {
-    addBox(gun, 0.06, 0.12, 0.18, 0, 0, 0.08, metal, false)
-    addBox(gun, 0.05, 0.1, 0.06, 0, -0.08, 0.02, darkSafe(), false)
-  } else if (id === 'smg') {
-    addBox(gun, 0.07, 0.1, 0.34, 0, 0, 0.12, metal, false)
-    addBox(gun, 0.06, 0.14, 0.08, 0, -0.1, 0.02, metal, false)
-  } else if (id === 'shotgun') {
-    addBox(gun, 0.07, 0.07, 0.62, 0, 0.02, 0.22, metal, false)
-    addBox(gun, 0.06, 0.08, 0.22, 0, -0.02, 0.02, wood, false)
-  } else if (id === 'sniper') {
-    addBox(gun, 0.06, 0.07, 0.78, 0, 0.03, 0.28, olive, false)
-    addBox(gun, 0.05, 0.06, 0.16, 0, 0.1, 0.18, metal, false)
-  } else if (id === 'rocket') {
-    addBox(gun, 0.12, 0.12, 0.7, 0, 0.02, 0.2, olive, false)
-    addBox(gun, 0.08, 0.08, 0.28, 0, 0.02, 0.55, metal, false)
-  } else {
-    addBox(gun, 0.07, 0.09, 0.55, 0, 0.02, 0.2, olive, false)
-    addBox(gun, 0.08, 0.12, 0.14, 0, -0.06, 0.05, metal, false)
-  }
-}
-
-function darkSafe(): THREE.MeshStandardMaterial {
-  return stdMat(0x1a1c1e, 0.5, 0.4)
-}
-
-function wheel(parent: THREE.Group, x: number, z: number): THREE.Mesh {
-  const axle = new THREE.Group()
-  axle.position.set(x, 0.36, z)
-  axle.rotation.z = Math.PI / 2
-  const tire = new THREE.Mesh(cylGeo(0.36, 0.36, 0.22, 10), stdMat(0x1a1a1a, 0.9, 0.1))
-  tire.castShadow = true
-  axle.add(tire)
-  parent.add(axle)
-  return tire
+  const key = id === 'pistol' ? 'pistol' : id === 'rocket' ? 'grenade' : 'm4'
+  const model = template(key).clone(true)
+  fitCarried(model, id === 'pistol' ? 0.32 : id === 'rocket' ? 0.22 : 0.84)
+  model.rotateY(Math.PI)
+  gun.add(model)
 }
 
 export interface RideRig {
   group: THREE.Group
-  wheels: THREE.Mesh[]
-  mainRotor: THREE.Group | null
-  tailRotor: THREE.Group | null
+  wheels: THREE.Object3D[]
+  mainRotor: THREE.Object3D | null
+  tailRotor: THREE.Object3D | null
+}
+
+function makeRide(name: string, longest: number): RideRig {
+  const model = template(name).clone(true)
+  const group = new THREE.Group()
+  fitUpright(model, longest)
+  group.add(model)
+  const wheels: THREE.Object3D[] = []
+  let mainRotor: THREE.Object3D | null = null
+  model.traverse((obj) => {
+    const n = obj.name.toLowerCase()
+    if (n.includes('wheel')) {
+      obj.userData.spin = 'x'
+      wheels.push(obj)
+    }
+    if (n.includes('rotor')) mainRotor = obj
+  })
+  return { group, wheels, mainRotor, tailRotor: null }
 }
 
 export function makeJeep(): RideRig {
-  const group = new THREE.Group()
-  const paint = stdMat(0x6d7344, 0.7, 0.15)
-  const dark = stdMat(0x2a2c28, 0.6, 0.2)
-  addBox(group, 1.7, 0.42, 3.15, 0, 0.72, 0, paint)
-  addBox(group, 1.55, 0.28, 1.1, 0, 1.05, 0.15, paint)
-  addBox(group, 1.2, 0.35, 0.08, 0, 1.15, 0.72, stdMat(0x9ec9d6, 0.15, 0.1))
-  addBox(group, 0.08, 0.55, 0.08, -0.7, 1.25, -0.4, dark)
-  addBox(group, 0.08, 0.55, 0.08, 0.7, 1.25, -0.4, dark)
-  addBox(group, 1.5, 0.06, 0.08, 0, 1.52, -0.4, dark)
-  const wheels = [
-    wheel(group, -0.92, 1.05),
-    wheel(group, 0.92, 1.05),
-    wheel(group, -0.92, -1.05),
-    wheel(group, 0.92, -1.05),
-  ]
-  return { group, wheels, mainRotor: null, tailRotor: null }
+  return makeRide('jeep', 4.35)
 }
 
 export function makeTruck(): RideRig {
-  const group = new THREE.Group()
-  const paint = stdMat(0x3e4632, 0.72, 0.18)
-  const dark = stdMat(0x22241f, 0.55, 0.25)
-  addBox(group, 2.15, 0.7, 2.1, 0, 1.15, 1.35, paint)
-  addBox(group, 2.25, 0.85, 3.6, 0, 1.25, -1.15, dark)
-  addBox(group, 2.05, 0.45, 0.08, 0, 1.45, 2.35, stdMat(0x8eb8c4, 0.12, 0.15))
-  addBox(group, 0.12, 0.7, 3.4, -1.2, 1.55, -1.1, stdMat(0x4a5140, 0.6, 0.3))
-  addBox(group, 0.12, 0.7, 3.4, 1.2, 1.55, -1.1, stdMat(0x4a5140, 0.6, 0.3))
-  const wheels: THREE.Mesh[] = []
-  for (const z of [1.7, -0.4, -1.9]) {
-    wheels.push(wheel(group, -1.15, z))
-    wheels.push(wheel(group, 1.15, z))
-  }
-  return { group, wheels, mainRotor: null, tailRotor: null }
+  return makeRide('truck', 6.4)
 }
 
 export function makeHeli(): RideRig {
-  const group = new THREE.Group()
-  const paint = stdMat(0x4e5638, 0.68, 0.2)
-  const dark = stdMat(0x242820, 0.5, 0.25)
-  const glass = new THREE.MeshStandardMaterial({
-    color: 0x9ec9d4,
-    roughness: 0.12,
-    metalness: 0.1,
-    transparent: true,
-    opacity: 0.45,
-  })
-  addBox(group, 2.05, 1.35, 4.1, 0, 1.55, 0.2, paint)
-  addBox(group, 1.5, 0.7, 1.3, 0, 1.7, 1.7, glass, false)
-  addBox(group, 0.38, 0.38, 3.3, 0, 1.7, -3.15, paint)
-  addBox(group, 0.12, 0.9, 0.5, 0, 2.15, -4.6, dark)
-  addBox(group, 0.9, 0.08, 0.35, 0.15, 1.85, -4.55, dark)
-  addBox(group, 0.12, 0.55, 0.12, 0, 2.45, 0.1, dark)
-  const skidL = addBox(group, 0.08, 0.08, 2.6, -0.7, 0.28, 0.1, dark)
-  const skidR = addBox(group, 0.08, 0.08, 2.6, 0.7, 0.28, 0.1, dark)
-  skidL.castShadow = true
-  skidR.castShadow = true
-  addBox(group, 0.06, 0.5, 0.06, -0.7, 0.55, 0.6, dark)
-  addBox(group, 0.06, 0.5, 0.06, 0.7, 0.55, 0.6, dark)
-  addBox(group, 0.06, 0.5, 0.06, -0.7, 0.55, -0.5, dark)
-  addBox(group, 0.06, 0.5, 0.06, 0.7, 0.55, -0.5, dark)
-
-  const mainRotor = new THREE.Group()
-  mainRotor.position.set(0, 2.85, 0.1)
-  addBox(mainRotor, 0.16, 0.04, 9.2, 0, 0, 0, dark, false)
-  addBox(mainRotor, 9.2, 0.04, 0.16, 0, 0, 0, dark, false)
-  group.add(mainRotor)
-
-  const tailRotor = new THREE.Group()
-  tailRotor.position.set(0.2, 2.05, -4.6)
-  addBox(tailRotor, 0.04, 1.3, 0.1, 0, 0, 0, dark, false)
-  addBox(tailRotor, 0.04, 0.1, 1.3, 0, 0, 0, dark, false)
-  group.add(tailRotor)
-  return { group, wheels: [], mainRotor, tailRotor }
+  return makeRide('helicopter', 12)
 }
 
 export function makePickupMesh(kind: 'ammo' | 'health' | 'grenade'): THREE.Group {
+  if (kind === 'grenade') {
+    const g = new THREE.Group()
+    const model = template('grenade').clone(true)
+    fitUpright(model, 0.34)
+    g.add(model)
+    return g
+  }
   const g = new THREE.Group()
-  const color = kind === 'health' ? 0xd8d2c6 : kind === 'grenade' ? 0x3d4a32 : 0x8a7a42
+  const color = kind === 'health' ? 0xd8d2c6 : 0x8a7a42
   addBox(g, 0.55, 0.4, 0.55, 0, 0.35, 0, stdMat(color, 0.6, 0.15))
   if (kind === 'health') addBox(g, 0.22, 0.08, 0.08, 0, 0.58, 0, stdMat(0xb3392c), false)
   return g
+}
+
+export function makeGrenadeMesh(): THREE.Object3D {
+  const model = template('grenade').clone(true)
+  fitCarried(model, 0.18)
+  return model
 }
 
 export function makePropMesh(kind: 'cache' | 'generator'): THREE.Group {

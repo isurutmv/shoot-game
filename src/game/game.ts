@@ -50,7 +50,7 @@ export class Game {
   private booms: { mesh: THREE.Mesh; light: THREE.PointLight; life: number }[] = []
   private beam: THREE.Mesh
   private dress: THREE.Group
-  private dressRotor: THREE.Group
+  private dressRotor: THREE.Object3D
   private mode: Mode = 'title'
   private save: SaveData = loadSave()
   private selected = 1
