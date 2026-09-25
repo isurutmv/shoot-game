@@ -38,3 +38,19 @@ On the pad you can use an **M9** and an **M4**, plus two frag grenades. A **jeep
 | Pause | Esc |
 
 Narrow windows show on-screen move, look, and fire controls. Keyboard still works.
+
+## Models
+
+The soldier, guns, and vehicles are textured glTF files. All of them are CC0.
+
+| In the game | Model | Author | Source |
+| --- | --- | --- | --- |
+| Player and enemies | Rigged Lowpoly WW2 Soldier | OpenGameArt community | https://opengameart.org/content/rigged-lowpoly-ww2-soldier |
+| M4 | M4A1 | nisu / 3DModelsCC0 | https://opengameart.org/content/m4a1-assault-rifle |
+| M9 slot | Desert Eagle | SirDraco65 | https://opengameart.org/content/desert-eagle-0 |
+| Frag grenade | Mk2 grenade | lonesomeducky | https://opengameart.org/content/mk2-grenade |
+| Jeep | Jeep with mounted gun | crookedmouth | https://opengameart.org/content/jeep-like-vehicle-with-mounted-gun |
+| Insertion helicopter | Helicopter body and rotor | z3eus | https://opengameart.org/content/helicopter-4 |
+| Armored truck | Soviet military off-road vehicle | artie31 | https://opengameart.org/content/soviet-military-off-road-vehicle |
+
+The helicopter and truck use the jeep pack's metal and rubber textures, which are part of that same CC0 jeep. The sidearm in the M9 slot is a Desert Eagle: the Beretta 92 blend on OpenGameArt would not open. Weapon names and stats are unchanged.

@@ -8,7 +8,7 @@ import {
   rayClosestBox,
   type Collider,
 } from './collision.ts'
-import { makeHeli, makeJeep, makePickupMesh, makePropMesh, makeSoldier, makeTruck, setWeaponVisual, type SoldierRig } from './models.ts'
+import { makeGrenadeMesh, makeHeli, makeJeep, makePickupMesh, makePropMesh, makeSoldier, makeTruck, setWeaponVisual, type SoldierRig } from './models.ts'
 import type { Behavior, DamageSource, EnemyKind, EnemySpawn, PropSpawn, Team, VehicleKind, VehicleSpawn, WeaponId } from './types.ts'
 import { WEAPONS, WEAPON_ORDER, missionScale } from './weapons.ts'
 
@@ -155,9 +155,9 @@ export class Player {
     const fx = Math.sin(this.yaw)
     const fz = -Math.cos(this.yaw)
     if (this.alive) g.lookAt(this.pos.x + fx, this.pos.y, this.pos.z + fz)
-    const swing = this.moving && this.alive ? Math.sin(this.walk) * 0.65 : 0
-    this.rig.leftLeg.rotation.x = swing
-    this.rig.rightLeg.rotation.x = -swing
+    const swing = this.moving && this.alive ? Math.sin(this.walk) * 0.55 : 0
+    this.rig.leftLeg.rotation.x = (this.rig.leftLeg.userData.restX ?? 0) + swing
+    this.rig.rightLeg.rotation.x = (this.rig.rightLeg.userData.restX ?? 0) - swing
     this.rig.gun.rotation.x = -this.pitch * 0.85
   }
 
@@ -517,8 +517,8 @@ export class Enemy {
     this.rig.group.lookAt(this.pos.x + fx, this.pos.y, this.pos.z + fz)
     const moving = this.alive
     const swing = moving ? Math.sin(this.pos.x * 0.4 + performance.now() * 0.006) * 0.35 : 0
-    this.rig.leftLeg.rotation.x = swing
-    this.rig.rightLeg.rotation.x = -swing
+    this.rig.leftLeg.rotation.x = (this.rig.leftLeg.userData.restX ?? 0) + swing
+    this.rig.rightLeg.rotation.x = (this.rig.rightLeg.userData.restX ?? 0) - swing
   }
 
   remove(): void {
@@ -547,9 +547,9 @@ export class Vehicle {
   radius: number
   ai: { path: { x: number; z: number }[]; speed: number; index: number; stuck: number } | null
   group: THREE.Group
-  wheels: THREE.Mesh[]
-  mainRotor: THREE.Group | null
-  tailRotor: THREE.Group | null
+  wheels: THREE.Object3D[]
+  mainRotor: THREE.Object3D | null
+  tailRotor: THREE.Object3D | null
   cooldown = 1
   smoke = 0
 
@@ -761,7 +761,10 @@ export class Vehicle {
     this.group.lookAt(this.pos.x + f.x, this.pos.y, this.pos.z + f.z)
     if (this.kind !== 'heli') this.group.rotateX(-clamp(this.speed / 18, -1, 1) * 0.05)
     const spin = this.speed * dt * 1.4
-    for (const w of this.wheels) w.rotation.y += spin
+    for (const w of this.wheels) {
+      if (w.userData.spin === 'x') w.rotation.x += spin
+      else w.rotation.y += spin
+    }
     if (this.mainRotor) this.mainRotor.rotation.y += rotor * 18 * dt
     if (this.tailRotor) this.tailRotor.rotation.x += rotor * 26 * dt
   }
@@ -849,7 +852,7 @@ export class Projectile {
   source: DamageSource
   kind: 'rocket' | 'grenade'
   armed = 0
-  mesh: THREE.Mesh
+  mesh: THREE.Object3D
   alive = true
 
   constructor(scene: THREE.Scene, kind: 'rocket' | 'grenade', pos: THREE.Vector3, vel: THREE.Vector3, source: DamageSource) {
@@ -861,14 +864,16 @@ export class Projectile {
     this.radius = kind === 'grenade' ? 5.6 : 6.4
     this.damage = kind === 'grenade' ? 105 : 150
     this.splash = this.damage
-    const geo = kind === 'grenade' ? new THREE.SphereGeometry(0.14, 8, 6) : new THREE.BoxGeometry(0.12, 0.12, 0.4)
-    this.mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: kind === 'grenade' ? 0x3d4a32 : 0x6a5a32 }))
+    if (kind === 'grenade') this.mesh = makeGrenadeMesh()
+    else this.mesh = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.4), new THREE.MeshStandardMaterial({ color: 0x6a5a32 }))
     scene.add(this.mesh)
   }
 
   remove(): void {
-    this.mesh.geometry.dispose()
-    if (this.mesh.material instanceof THREE.Material) this.mesh.material.dispose()
+    if (this.mesh instanceof THREE.Mesh) {
+      this.mesh.geometry.dispose()
+      if (this.mesh.material instanceof THREE.Material) this.mesh.material.dispose()
+    }
     this.mesh.removeFromParent()
   }
 }
